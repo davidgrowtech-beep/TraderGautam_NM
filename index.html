@@ -145,9 +145,15 @@ footer a{text-decoration:underline;text-underline-offset:2px}
   /* ===== CONFIG ===== */
   var TG_URL    = "https://t.me/+aslIJOf74ZNjOTI1";
   var TG_INVITE = "aslIJOf74ZNjOTI1";
-  var EVENT     = "Lead";      // must match the campaign result: "Website Lead"
-  var MIN_DWELL_MS = 1500;     // min time on page before a tap counts as a lead
-  var DEDUPE_DAYS  = 7;        // one Lead per person/device in this window
+  var EVENT     = "Lead";          // must match the campaign result: "Website Lead"
+  var CFG = {
+    ignoreClickMs: 1000,   // tap in first 1s: Telegram STILL opens, but no Lead
+    minMovePx: 60,         // real scroll / swipe / mouse movement (human is looking)
+    minEngagedMs: 1500,    // ...and must stay this long after first real movement
+    minDwellMs: 3000,      // total VISIBLE time on page before a tap counts as Lead
+    dedupHours: 24,        // one Lead per device per 24h (never blocks Telegram access)
+    reportFiltered: true   // custom "FilteredClick" event with reason (diagnostics only)
+  };
 
   var btns = document.querySelectorAll('.btn[data-cta]');
   document.getElementById('year').textContent = new Date().getFullYear();
@@ -158,6 +164,7 @@ footer a{text-decoration:underline;text-underline-offset:2px}
   var inApp = /FBAN|FBAV|FB_IAB|FBIOS|Instagram/i.test(ua);
   var isBot = navigator.webdriver===true || /bot|crawl|spider|facebookexternalhit|Facebot|TelegramBot|HeadlessChrome|Lighthouse|PhantomJS|Selenium|Puppeteer/i.test(ua);
 
+  /* Telegram link is ALWAYS present and ALWAYS works. Filters below only decide the pixel event. */
   var href = TG_URL;
   if(inApp && isAndroid){
     href = "intent://join?invite="+TG_INVITE+"#Intent;scheme=tg;package=org.telegram.messenger;S.browser_fallback_url="+encodeURIComponent(TG_URL)+";end";
@@ -171,43 +178,87 @@ footer a{text-decoration:underline;text-underline-offset:2px}
     document.body.appendChild(bar);
   }
 
-  /* ---- persistent de-dupe (localStorage + cookie): max 1 Lead per device per 7 days ---- */
-  var KEY='lwg_lead_v4';
+  /* ---- persistent de-dupe (localStorage + cookie) ---- */
+  var KEY='lwg_lead_v5';
   function stored(){
     var v=null;
     try{v=localStorage.getItem(KEY)}catch(e){}
-    if(!v){ var m=document.cookie.match(/(?:^|; )lwg_lead_v4=([^;]*)/); if(m) v=m[1]; }
+    if(!v){ var m=document.cookie.match(/(?:^|; )lwg_lead_v5=([^;]*)/); if(m) v=m[1]; }
     return v;
   }
-  function already(){ var t=parseInt(stored(),10); return !!t && (Date.now()-t) < DEDUPE_DAYS*864e5; }
+  function already(){ var t=parseInt(stored(),10); return !!t && (Date.now()-t) < CFG.dedupHours*36e5; }
   function mark(){
     var v=String(Date.now());
     try{localStorage.setItem(KEY,v)}catch(e){}
-    try{document.cookie=KEY+'='+v+'; max-age='+(DEDUPE_DAYS*86400)+'; path=/; SameSite=Lax'}catch(e){}
+    try{document.cookie=KEY+'='+v+'; max-age='+(CFG.dedupHours*3600)+'; path=/; SameSite=Lax'}catch(e){}
   }
 
-  var t0=Date.now(), human=false, sent=false, clickedAt=0;
-  ['pointermove','touchstart','scroll','keydown','wheel'].forEach(function(e){
-    window.addEventListener(e,function(){human=true},{passive:true,once:true});
+  /* ---- engagement tracking ---- */
+  var t0=Date.now(), clickedAt=0, sent=false, reported=false;
+  var visMs=0, visSince=(document.visibilityState==='visible')?Date.now():0;
+  function visibleMs(){ return visMs + (visSince ? Date.now()-visSince : 0); }
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='visible'){ visSince=Date.now(); }
+    else if(visSince){ visMs+=Date.now()-visSince; visSince=0; }
   });
 
-  /* Real <a href>: no preventDefault / no setTimeout, so Telegram opens reliably.
-     The pixel event fires synchronously on a genuine, human, first tap only. */
+  var moved=0, firstMoveAt=0, lastX=null, lastY=null, lastScroll=window.pageYOffset||0, touchedElsewhere=false;
+  function addMove(px){
+    if(px<=0) return;
+    moved+=px;
+    if(!firstMoveAt && moved>=CFG.minMovePx) firstMoveAt=Date.now();
+  }
+  window.addEventListener('scroll',function(){
+    var y=window.pageYOffset||0; addMove(Math.abs(y-lastScroll)); lastScroll=y;
+  },{passive:true});
+  function track(e){
+    var p=(e.touches&&e.touches[0])||e;
+    if(p.clientX==null) return;
+    if(lastX!==null) addMove(Math.abs(p.clientX-lastX)+Math.abs(p.clientY-lastY));
+    lastX=p.clientX; lastY=p.clientY;
+  }
+  window.addEventListener('pointermove',track,{passive:true});
+  window.addEventListener('touchmove',track,{passive:true});
+  window.addEventListener('touchend',function(){lastX=null;lastY=null},{passive:true});
+  /* a touch on the page that is not the CTA also proves a person is there (tap-without-scroll users) */
+  window.addEventListener('touchstart',function(e){
+    if(!(e.target && e.target.closest && e.target.closest('.btn[data-cta]'))) touchedElsewhere=true;
+  },{passive:true});
+
+  function filterReason(e){
+    if(e.isTrusted===false) return 'untrusted';
+    if(isBot) return 'bot';
+    var now=Date.now();
+    if(now-t0 < CFG.ignoreClickMs) return 'too_fast';
+    if(visibleMs() < CFG.minDwellMs) return 'short_dwell';
+    var humanProof = moved>=CFG.minMovePx || touchedElsewhere;
+    if(!humanProof) return 'no_movement';
+    if(moved>=CFG.minMovePx && firstMoveAt && now-firstMoveAt < CFG.minEngagedMs && !touchedElsewhere) return 'short_engage';
+    if(already()) return 'duplicate';
+    return '';
+  }
+
+  /* Real <a href>: no preventDefault / no setTimeout, so Telegram always opens. */
   function onClick(e){
     clickedAt=Date.now();
-    if(e.isTrusted===false || isBot) return;
-    var ok = (Date.now()-t0)>=MIN_DWELL_MS && human && document.visibilityState!=='hidden';
-    if(ok && !sent && !already() && typeof window.fbq==='function'){
+    var reason=filterReason(e);
+    var cta=e.currentTarget.getAttribute('data-cta')||'unknown';
+    if(typeof window.fbq!=='function') return;
+    if(!reason && !sent){
       try{
-        window.fbq('track', EVENT, {content_name:'Learn with Gautam - Telegram Channel', cta_location:e.currentTarget.getAttribute('data-cta')||'unknown'}, {eventID:'lwg_'+Date.now()+'_'+Math.random().toString(36).slice(2,10)});
+        window.fbq('track', EVENT, {content_name:'Learn with Gautam - Telegram Channel', cta_location:cta}, {eventID:'lwg_'+Date.now()+'_'+Math.random().toString(36).slice(2,10)});
         sent=true; mark();
+      }catch(err){}
+    } else if(reason && CFG.reportFiltered && !reported){
+      reported=true;
+      try{
+        window.fbq('trackCustom','FilteredClick',{reason:reason, dwell_ms:Math.round(visibleMs()), moved_px:Math.round(moved), cta_location:cta});
       }catch(err){}
     }
   }
   btns.forEach(function(b){ b.addEventListener('click',onClick); });
 
-  /* ---- recovery: user came back from Telegram -> maybe forgot "Request to Join" ----
-     Shows a reminder + re-open link. Plain link, so it never fires a second Lead. */
+  /* ---- recovery: user came back from Telegram -> maybe forgot "Request to Join" ---- */
   var back=null;
   function showBack(){
     if(back || !clickedAt) return;
