@@ -75,17 +75,6 @@ h1{font:800 clamp(32px,8.6vw,54px)/1.14 'Baloo 2';letter-spacing:-.015em;margin-
 }
 .jc h2{font:700 21px/1.25 'Baloo 2';margin-bottom:2px}
 .jc .sub{color:var(--mut);font-size:13.5px;margin-bottom:14px}
-.f label{display:block;font-size:13px;font-weight:600;color:var(--saf);margin-bottom:7px}
-.ni{width:100%;min-height:52px;padding:0 16px;background:rgba(10,8,40,.65);border:1.5px solid var(--line);border-radius:13px;color:var(--txt);font:600 16px 'Hind',sans-serif;outline:none;transition:border-color .2s,box-shadow .2s;-moz-appearance:textfield}
-.ni+.ni{margin-top:10px}
-.ni::-webkit-outer-spin-button,.ni::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-.ni::placeholder{color:#8F8BC4;font-weight:500}
-.ni:focus-visible{border-color:var(--sky);box-shadow:0 0 0 3px rgba(42,171,238,.25)}
-.ni.bad{border-color:var(--err)!important;animation:shk .45s ease}
-.ne{display:flex;align-items:center;gap:8px;color:#FF8CA2;font-size:13.5px;font-weight:600;max-height:0;opacity:0;overflow:hidden;transition:max-height .25s,opacity .25s,margin .25s}
-.ne.show{max-height:56px;opacity:1;margin-top:10px}
-.ne i{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--err);color:#fff;font:800 12px/1 sans-serif;font-style:normal}
-@keyframes shk{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}
 
 /* ---------- THE button ---------- */
 .tg-btn{
@@ -215,13 +204,7 @@ section.blk{padding:34px 0}
 
       <div class="jc" id="join">
         <h2>2 मिनट में जुड़ें · Join in 2 minutes</h2>
-        <p class="sub">नाम और उम्र लिखें, फिर नीचे का बटन दबाएं।</p>
-        <div class="f">
-          <label for="uName">जॉइन करने से पहले अपना नाम और उम्र लिखें · Enter your name and age</label>
-          <input class="ni" id="uName" type="text" placeholder="आपका नाम · Your name" autocomplete="name" enterkeyhint="next">
-          <input class="ni" id="uAge" type="number" placeholder="आपकी उम्र · Your age" min="1" max="120" inputmode="numeric" autocomplete="off">
-          <div class="ne" id="nErr" role="alert"><i>!</i><span id="nErrTx">पहले नाम और उम्र लिखें, फिर जॉइन करें · Enter name and age first</span></div>
-        </div>
+        <p class="sub">नीचे का बटन दबाएं, Telegram खुलेगा। · Tap the button, Telegram opens.</p>
 
         <a class="tg-btn" id="mainBtn" href="https://t.me/+aslIJOf74ZNjOTI1" data-tg>
           <span class="tg-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.8 3.2 18.5 20c-.25 1.18-.91 1.47-1.85.92l-5-3.68-2.41 2.32c-.27.27-.49.49-1 .49l.36-5.09 9.26-8.37c.4-.36-.09-.56-.63-.2L5.78 13.6.85 12.06c-1.07-.34-1.09-1.07.22-1.58L20.35 3c.9-.33 1.68.2 1.45.2Z"/></svg></span>
@@ -235,9 +218,9 @@ section.blk{padding:34px 0}
       <h2 id="h-steps">जुड़ना बहुत आसान है</h2>
       <p class="lead">3 स्टेप, 1 मिनट · 3 simple steps</p>
       <div class="steps">
-        <div class="step"><div><b>नाम और उम्र लिखें</b><span>Fill in your name and age above.</span></div></div>
         <div class="step"><div><b>Telegram बटन दबाएं</b><span>Tap the blue button, Telegram opens.</span></div></div>
-        <div class="step last"><div><b>“Request to Join” दबाएं</b><span>Tap Request to Join, the admin approves you.</span></div></div>
+        <div class="step"><div><b>“Request to Join” दबाएं</b><span>Tap Request to Join inside Telegram.</span></div></div>
+        <div class="step last"><div><b>एडमिन अप्रूव करेगा</b><span>The admin approves you and you are in.</span></div></div>
       </div>
     </section>
 
@@ -298,13 +281,14 @@ fbq('init','1740557130328746');   /* PageView is sent later, only for real human
 "use strict";
 var TG="https://t.me/+aslIJOf74ZNjOTI1", INV="aslIJOf74ZNjOTI1", TGAPP="tg://join?invite="+INV;
 var CFG={
-  ignoreClickMs:1000,   /* tap in first 1s: Telegram still opens, but no Lead */
-  minMovePx:60,         /* real scroll / swipe / mouse movement */
-  minEngagedMs:1500,    /* ...and stay this long after the first real movement */
-  minDwellMs:3000,      /* total VISIBLE time before a tap counts as a Lead */
+  minDwellMs:6000,      /* VISIBLE time on page before a tap can count as a Lead */
+  minMovePx:80,         /* real scroll / swipe / mouse movement */
+  minEngagedMs:2000,    /* must stay this long after the first real interaction */
+  minCtaSeenMs:1000,    /* a join button must have been on screen this long */
+  minPressMs:35,        /* finger/mouse press shorter than this = synthetic click */
   dedupHours:24,        /* one Lead per device per 24h (never blocks Telegram access) */
-  minAge:18,            /* content is for 18+ */
-  reportFiltered:true   /* custom "FilteredClick" event with reason (diagnostics only) */
+  reportFiltered:true,  /* custom "FilteredClick" event with reason (diagnostics only) */
+  debug:/[?&]dbg=1/.test(location.search)
 };
 
 var ua=navigator.userAgent||"";
@@ -340,7 +324,7 @@ window.addEventListener('pointermove',trk,{passive:true});
 window.addEventListener('touchmove',trk,{passive:true});
 window.addEventListener('touchend',function(){lastX=null;lastY=null},{passive:true});
 window.addEventListener('touchstart',function(e){
-  if(!(e.target&&e.target.closest&&e.target.closest('[data-tg]')))touchedElsewhere=true},{passive:true});
+  if(!(e.target&&e.target.closest&&e.target.closest('[data-tg]'))){touchedElsewhere=true;if(!firstMoveAt)firstMoveAt=Date.now()}},{passive:true});
 
 /* ---------- qualified PageView: real human only ---------- */
 var pvDone=false, pvHuman=false;
@@ -368,37 +352,29 @@ function already(){var t=parseInt(stored(),10);return !!t&&(Date.now()-t)<CFG.de
 function mark(){var v=String(Date.now());try{localStorage.setItem(KEY,v)}catch(x){}
   try{document.cookie=KEY+'='+v+'; max-age='+(CFG.dedupHours*3600)+'; path=/; SameSite=Lax'}catch(x){}}
 
-/* ---------- name + age gate (commitment step) ---------- */
-var nm=document.getElementById('uName'), ag=document.getElementById('uAge'), ne=document.getElementById('nErr'), neTx=document.getElementById('nErrTx'), gateEv=false;
-var MSG_ALL='पहले नाम और उम्र लिखें, फिर जॉइन करें · Enter name and age first';
-var MSG_AGE='यह चैनल सिर्फ 18+ के लिए है · This channel is for 18+ only';
-function gateOk(){
-  var n=(nm.value||'').trim(), a=parseInt(ag.value,10), bad=[], msg=MSG_ALL;
-  if(n.length<2)bad.push(nm);
-  if(!(a>=1&&a<=120))bad.push(ag);
-  else if(a<CFG.minAge){bad.push(ag);if(n.length>=2)msg=MSG_AGE}
-  if(!bad.length)return true;
-  neTx.textContent=msg;
-  bad.forEach(function(i){i.classList.remove('bad');void i.offsetWidth;i.classList.add('bad')});
-  ne.classList.remove('show');void ne.offsetWidth;ne.classList.add('show');
-  bad[0].scrollIntoView({behavior:'smooth',block:'center'});
-  try{bad[0].focus({preventScroll:true})}catch(x){bad[0].focus()}
-  return false;
-}
-[nm,ag].forEach(function(i){i.addEventListener('input',function(){
-  i.classList.remove('bad');
-  if((nm.value||'').trim().length>=2&&parseInt(ag.value,10)>=CFG.minAge)ne.classList.remove('show');
-})});
+/* ---------- CTA visibility + press tracking ---------- */
+var ctaSeen=false, ctaTimer=null, downAt=0;
+if('IntersectionObserver' in window){
+  var cio=new IntersectionObserver(function(en){
+    var any=en.some(function(x){return x.isIntersecting});
+    if(any&&!ctaSeen&&!ctaTimer)ctaTimer=setTimeout(function(){if(document.visibilityState==='visible')ctaSeen=true;ctaTimer=null},CFG.minCtaSeenMs);
+    if(!any&&ctaTimer&&!ctaSeen){clearTimeout(ctaTimer);ctaTimer=null}
+  },{threshold:0.6});
+  btns.forEach(function(b){cio.observe(b)});
+}else{ctaSeen=true}
+btns.forEach(function(b){b.addEventListener('pointerdown',function(){downAt=Date.now()},{passive:true})});
 
-/* ---------- Lead filter: decides ONLY the pixel event ---------- */
+/* ---------- Lead filter: decides ONLY the pixel event, never the Telegram link ---------- */
 function filterReason(e){
+  var now=Date.now();
   if(e&&e.isTrusted===false)return'untrusted';
   if(isBot)return'bot';
-  var now=Date.now();
-  if(now-t0<CFG.ignoreClickMs)return'too_fast';
+  if(document.visibilityState!=='visible')return'hidden';
+  if(downAt&&(now-downAt)<CFG.minPressMs)return'synthetic_press';
   if(visibleMs()<CFG.minDwellMs)return'short_dwell';
   if(!(moved>=CFG.minMovePx||touchedElsewhere))return'no_movement';
-  if(moved>=CFG.minMovePx&&firstMoveAt&&now-firstMoveAt<CFG.minEngagedMs&&!touchedElsewhere)return'short_engage';
+  if(!firstMoveAt||now-firstMoveAt<CFG.minEngagedMs)return'short_engage';
+  if(!ctaSeen)return'cta_not_seen';
   if(already())return'duplicate';
   return'';
 }
@@ -406,16 +382,13 @@ function filterReason(e){
 var tapAt=0, opened=false, leadSent=false, reported=false, timer=null;
 var rb=document.getElementById('rb'), ov=document.getElementById('ov');
 
-/* Real <a href>: NO preventDefault (once valid), NO delay -> Telegram opens instantly. */
+/* Real <a href>: NO preventDefault, NO delay -> Telegram opens instantly. */
 function onTap(e){
-  if(!gateOk()){
-    if(e&&e.preventDefault)e.preventDefault();
-    if(!gateEv){gateEv=true;ev('GateBlocked',1,{os:osName()})}
-    return;
-  }
   tapAt=Date.now(); opened=false;
   rb.style.display='none';
   var reason=filterReason(e);
+  if(CFG.debug)console.log('[LP] tap',reason||'LEAD',{dwell:Math.round(visibleMs()),moved:Math.round(moved),ctaSeen:ctaSeen});
+  downAt=0;
   if(!reason&&!leadSent){
     leadSent=true; mark();
     try{fbq('track','Lead',{content_name:'Gautam - Learning Machine',destination:'Telegram',value:0,currency:'INR',time_on_page:Math.round((Date.now()-t0)/1000)},{eventID:eid('lead')})}catch(x){}
